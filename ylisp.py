@@ -1,61 +1,39 @@
-# YLisp Specification:
-#
-# atom 1
-# string "hello"
-# list ()
-# lambda (lambda (arg1 arg2) body)
-import sys
-import re
+from __future__ import print_function
+import sys, re
 
-builtin={
-    '+':lambda a,b:a+b,
-    '-':lambda a,b:a-b,
-    '*':lambda a,b:a*b,
-    '/':lambda a,b:a/b,
-}
-
+builtin = {'+': lambda a, b: a + b,
+           '-': lambda a, b: a - b,
+           '*': lambda a, b: a * b,
+           '/': lambda a, b: a / b,
+           'print': print}
 
 
 def yeval(token):
-    if isinstance(token, list):
-        if isinstance(token[0],str) and token[0]=='lambda':
-            return {
-                "type": "lambda",
-                "param": token[1],
-                "body": token[2]
-            }
+    if type(token) == list:
+        if type(token[0]) == str and token[0] == 'lambda':
+            return {"param": token[1], "body": token[2]}
         else:
             func = yeval(token[0])
-            if isinstance(func,dict) and func["type"]=="lambda":
-                code = func["body"]
-                for i,name in enumerate(func["param"]):
-                    code = [yeval(token[i+1]) if var==name else var for var in code]
-                return yeval(code)
+            print("Stacktrace:", func, token)
+            if type(func) == dict:
+                body = str(func["body"])
+                for i, name in enumerate(func["param"]):
+                    body = body.replace(name, str(yeval(token[i + 1])))
+                body = eval(body)
+                return yeval(body)
             else:
-                return func(token[1],token[2])
-    elif token == '+' or token == '-' or token == '*' or token == '/':
+                return func(*[yeval(t) for t in token[1:]])
+    elif builtin.has_key(token):
         return builtin[token]
-    else:
+    elif token.isdigit():
         return int(token)
+    elif token.isalpha():
+        return token
 
-def parse(code):
-    code = re.sub('\s+', ',', code.strip())
-    code = code.replace('(', '[').replace(')', ']').replace(',]', ']')
-    code = re.sub(r'([+\-*/])', r"'\1'", code)  # + => "+"
-    code = re.sub(r'(["a-zA-Z0-9_]+)', r"'\1'", code)  # ident, 89,"str" = >"ident","89",'"str"'
+
+if __name__ == "__main__" and len(sys.argv) >= 2:
+    code = re.sub(r'\s+', ',', sys.argv[1].strip()).replace('(', '[').replace(')', ']').replace(',]', ']')  # type: str
+    code = re.sub(r'(["a-zA-Z0-9_]+)', r"'\1'", re.sub(r'([+\-*/])', r"'\1'", code))
     code = eval(code)
-    print "Tokenized:" + str(code)
-    ctx = yeval(code)
-    print ctx
-
-
-def main(argv):
-    if len(argv) == 0:
-        return  # TODO:REPL mode
-
-    if len(argv) >= 2 and isinstance(argv[1], str):
-        parse(argv[1])
-
-
-if __name__ == "__main__":
-    main(sys.argv)
+    print("Tokenized:" + str(code))
+    yeval(code)
